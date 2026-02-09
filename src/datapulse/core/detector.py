@@ -9,6 +9,7 @@ from enum import Enum
 import pandas as pd
 import numpy as np
 from scipy import stats
+from scipy.spatial.distance import jensenshannon
 
 
 class DriftMethod(Enum):
@@ -108,7 +109,7 @@ class DriftDetector:
     
     def __init__(
         self,
-        method: Literal["auto", "ks_test", "chi_square", "psi"] = "auto",
+        method: Literal["auto", "ks_test", "chi_square", "psi", "js_divergence"] = "auto",
         threshold: float = 0.05,
         psi_threshold: float = 0.2,
     ):
@@ -117,7 +118,7 @@ class DriftDetector:
         
         Args:
             method: Detection method ('auto' selects based on column type)
-            threshold: P-value threshold for statistical tests
+            threshold: P-value threshold for statistical tests, or distance threshold for JS
             psi_threshold: PSI threshold for drift detection
         """
         self.method = method
@@ -168,6 +169,8 @@ class DriftDetector:
                 result = self._chi_square_test(col, baseline_col, current_col)
             elif self.method == "psi":
                 result = self._psi_test(col, baseline_col, current_col)
+            elif self.method == "js_divergence":
+                result = self._js_divergence_test(col, baseline_col, current_col)
             else:
                 continue
             
@@ -259,4 +262,54 @@ class DriftDetector:
             method=DriftMethod.PSI,
             statistic=float(psi),
             threshold=self.psi_threshold,
+        )
+
+    def _js_divergence_test(self, column: str, baseline: pd.Series, current: pd.Series) -> ColumnDrift:
+        """Jensen-Shannon Divergence test."""
+        # Calculate probabilities
+        if pd.api.types.is_numeric_dtype(baseline):
+            # Numeric: use histogram bins derived from baseline
+            # Use max 10 bins or adequate for data size
+            n_bins = min(20, max(5, len(baseline) // 50))
+            if n_bins < 2: 
+                n_bins = 5 # default fallback
+                
+            # Compute global bin edges to align distributions
+            combined_data = np.concatenate([baseline, current])
+            # Use fixed bins from combined range
+            try:
+                hist_range = (combined_data.min(), combined_data.max())
+                baseline_hist, _ = np.histogram(baseline, bins=n_bins, range=hist_range)
+                current_hist, _ = np.histogram(current, bins=n_bins, range=hist_range)
+            except Exception:
+                # Fallback if empty or single value
+                baseline_hist = np.array([len(baseline)])
+                current_hist = np.array([len(current)])
+                
+        else:
+            # Categorical: use value counts
+            all_cats = list(set(baseline.unique()) | set(current.unique()))
+            # Create a map for fast lookup
+            b_counts = baseline.value_counts()
+            c_counts = current.value_counts()
+            
+            baseline_hist = np.array([b_counts.get(cat, 0) for cat in all_cats])
+            current_hist = np.array([c_counts.get(cat, 0) for cat in all_cats])
+            
+        # Normalize to create PMFs
+        p = baseline_hist / (baseline_hist.sum() + 1e-10)
+        q = current_hist / (current_hist.sum() + 1e-10)
+        
+        # Calculate JS distance (metric) which is sqrt(JS divergence)
+        # base=2 is standard for bits
+        distance = jensenshannon(p, q, base=2)
+        
+        # If arrays are identical, distance is 0. If distinct, max is 1.
+        
+        return ColumnDrift(
+            column=column,
+            has_drift=distance > self.threshold, 
+            method=DriftMethod.JS_DIVERGENCE,
+            statistic=float(distance),
+            threshold=self.threshold,
         )
