@@ -126,9 +126,21 @@ class Monitor:
                     total_failed += 1
                     failures[f"{col}_check_{idx}"] = msg
 
-        return ValidationResult(
+        result = ValidationResult(
             passed=(total_failed == 0),
             total_checked=total_checked,
             total_failed=total_failed,
             failures=failures,
         )
+
+        if not result.passed:
+            for alert in self.alerts:
+                alert.send(
+                    message=f"Quality check failed for monitor '{self.name}'",
+                    context={
+                        "Total Failed": result.total_failed,
+                        "Summary": result.summary(),
+                    },
+                )
+
+        return result

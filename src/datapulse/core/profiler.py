@@ -47,10 +47,10 @@ class Profile:
         return js
 
     def to_html(self, path: str):
-        """Export profile to HTML."""
-        html_content = f"<html><head><title>DataPulse Report</title></head><body><pre>{self.summary()}</pre></body></html>"
-        with open(path, "w") as f:
-            f.write(html_content)
+        """Export profile to HTML dashboard."""
+        from datapulse.reports.html import generate_html_report
+
+        generate_html_report(self, path)
 
 
 class DataPulse:
