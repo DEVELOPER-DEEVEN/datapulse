@@ -1,0 +1,17 @@
+project: Adidas_Global_Audit
+version: 1.0
+
+monitors:
+  catalogue_health:
+    name: "Adidas Global Quality Audit"
+    expectations:
+      - column: discount_pct
+        check: positive
+      - column: rating_count
+        check: positive
+      - column: product_id
+        check: unique
+      - column: currency
+        check: in
+        params:
+          values: ["USD", "EUR", "GBP", "JPY", "INR"]

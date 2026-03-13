@@ -49,8 +49,13 @@ class Profile:
     def to_html(self, path: str):
         """Export profile to HTML dashboard."""
         from datapulse.reports.html import generate_html_report
-
         generate_html_report(self, path)
+
+    def to_pdf(self, path: str):
+        """Export profile to professional PDF report."""
+        from datapulse.reports.pdf import generate_pdf_report
+        generate_pdf_report(self, path)
+
 
 
 class DataPulse:

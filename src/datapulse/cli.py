@@ -22,21 +22,19 @@ def profile(
         None, "--output", "-o", help="Output path for report"
     ),
     format: str = typer.Option(
-        "text", "--format", "-f", help="Output format: text, json, html"
+        "text", "--format", "-f", help="Output format: text, json, html, pdf"
     ),
-):
+    ):
     """Profile a dataset and generate quality report."""
     from datapulse import DataPulse
 
     # Load data
     console.print(f"[blue]Loading data from {path}...[/blue]")
 
-    if path.suffix == ".csv":
-        df = pd.read_csv(path)
-    elif path.suffix in [".parquet", ".pq"]:
-        df = pd.read_parquet(path)
-    else:
-        console.print(f"[red]Unsupported file format: {path.suffix}[/red]")
+    try:
+        df = pd.read_csv(path) if path.suffix == ".csv" else pd.read_parquet(path)
+    except Exception as e:
+        console.print(f"[red]Error loading data: {e}[/red]")
         raise typer.Exit(1)
 
     console.print(f"[green]Loaded {len(df):,} rows, {len(df.columns)} columns[/green]")
@@ -59,6 +57,14 @@ def profile(
         else:
             console.print("[red]HTML format requires --output path[/red]")
             raise typer.Exit(1)
+    elif format == "pdf":
+        if output:
+            report.to_pdf(output)
+            console.print(f"[green]PDF report saved to {output}[/green]")
+        else:
+            console.print("[red]PDF format requires --output path[/red]")
+            raise typer.Exit(1)
+
 
     if output and format != "html":
         console.print(f"[green]Report saved to {output}[/green]")
