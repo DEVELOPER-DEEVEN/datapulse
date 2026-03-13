@@ -1,1 +1,1 @@
-"""Core module for DataPulse."""
+"""Core functionality for DataPulse."""

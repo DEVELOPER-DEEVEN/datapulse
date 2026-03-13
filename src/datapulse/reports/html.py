@@ -217,10 +217,10 @@ HTML_TEMPLATE = """
 def generate_html_report(profile: Profile, path: str | Path) -> None:
     """Generate an HTML report from a profile."""
     column_rows = []
-    
+
     for col_name, col_profile in profile.columns.items():
         null_pct = col_profile.null_percentage
-        
+
         if null_pct > 20:
             status = '<span class="badge badge-danger">High Nulls</span>'
         elif null_pct > 5:
@@ -229,7 +229,7 @@ def generate_html_report(profile: Profile, path: str | Path) -> None:
             status = '<span class="badge badge-warning">Outliers</span>'
         else:
             status = '<span class="badge badge-success">OK</span>'
-        
+
         row = f"""
         <tr>
             <td><strong>{col_name}</strong></td>
@@ -240,7 +240,7 @@ def generate_html_report(profile: Profile, path: str | Path) -> None:
         </tr>
         """
         column_rows.append(row)
-    
+
     html = HTML_TEMPLATE.format(
         row_count=profile.row_count,
         column_count=profile.column_count,
@@ -248,5 +248,5 @@ def generate_html_report(profile: Profile, path: str | Path) -> None:
         memory_mb=profile.memory_usage_mb,
         column_rows="\n".join(column_rows),
     )
-    
+
     Path(path).write_text(html)

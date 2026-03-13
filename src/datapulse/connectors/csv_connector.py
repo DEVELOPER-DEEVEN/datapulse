@@ -1,7 +1,10 @@
-import pandas as pd
-from typing import Optional, Any
 from pathlib import Path
+from typing import Any
+
+import pandas as pd
+
 from .base import BaseConnector
+
 
 class CsvConnector(BaseConnector):
     """Connector for CSV files."""
@@ -23,11 +26,11 @@ class CsvConnector(BaseConnector):
 
         Returns:
             pd.DataFrame: Loaded data.
-        
+
         Raises:
             FileNotFoundError: If file does not exist.
         """
         if not Path(self.filepath).exists():
             raise FileNotFoundError(f"File not found: {self.filepath}")
-            
+
         return pd.read_csv(self.filepath, **self.kwargs)

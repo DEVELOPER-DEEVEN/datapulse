@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
+
 import pandas as pd
-from typing import Any, Optional
+
 
 class BaseConnector(ABC):
     """Abstract base class for data connectors."""
