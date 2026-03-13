@@ -70,36 +70,54 @@ def validate(
     config: Optional[Path] = typer.Option(
         None, "--config", "-c", help="Path to datapulse.yaml config"
     ),
+    monitor_name: Optional[str] = typer.Option(
+        None, "--monitor", "-m", help="Specific monitor name from config"
+    ),
     fail_on_error: bool = typer.Option(
         False, "--fail", help="Exit with error code on validation failure"
     ),
 ):
     """Validate a dataset against expectations."""
     from datapulse import Monitor
+    from datapulse.core.config import load_config, build_monitor_from_config
 
     # Load data
     console.print(f"[blue]Loading data from {path}...[/blue]")
-
-    if path.suffix == ".csv":
-        df = pd.read_csv(path)
-    elif path.suffix in [".parquet", ".pq"]:
-        df = pd.read_parquet(path)
-    else:
-        console.print(f"[red]Unsupported file format: {path.suffix}[/red]")
+    try:
+        df = pd.read_csv(path) if path.suffix == ".csv" else pd.read_parquet(path)
+    except Exception as e:
+        console.print(f"[red]Error loading data: {e}[/red]")
         raise typer.Exit(1)
 
-    # Create monitor with basic expectations
-    monitor = Monitor(name="cli_validation", fail_on_error=fail_on_error)
+    if config:
+        # Load from YAML
+        console.print(f"[blue]Loading expectations from {config}...[/blue]")
+        full_config = load_config(config)
+        target_monitor = monitor_name or list(full_config.monitors.keys())[0]
+        monitor = build_monitor_from_config(target_monitor, full_config)
+    else:
+        # Intelligent Auto-Expectations
+        console.print(
+            "[yellow]No config provided. Running intelligent auto-validation...[/yellow]"
+        )
+        monitor = Monitor(name="auto_validation", fail_on_error=fail_on_error)
+        for col in df.columns:
+            # 1. Non-null expectation for relatively full columns
+            null_pct = df[col].isna().sum() / len(df)
+            if null_pct < 0.2:
+                monitor.expect(col).to_not_be_null()
 
-    # Add basic expectations for all columns
-    for col in df.columns:
-        if df[col].isna().sum() / len(df) > 0.5:
-            continue  # Skip mostly-null columns
-        monitor.expect(col).to_not_be_null()
+            # 2. Uniqueness for high-cardinality ID-like columns
+            if "id" in col.lower() and df[col].nunique() / len(df) > 0.9:
+                monitor.expect(col).to_be_unique()
+
+            # 3. Positivity for financial/metric columns
+            if any(k in col.lower() for k in ["price", "revenue", "cost", "score"]):
+                if pd.api.types.is_numeric_dtype(df[col]):
+                    monitor.expect(col).to_be_positive()
 
     # Run validation
     result = monitor.validate(df)
-
     console.print(result.summary())
 
     if not result.passed and fail_on_error:

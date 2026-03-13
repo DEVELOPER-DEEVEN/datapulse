@@ -76,14 +76,25 @@ class DriftDetector:
 
                 all_cats = list(set(base_counts.index).union(set(curr_counts.index)))
 
-                b_freq = [base_counts.get(c, 0.0) * len(base_s) for c in all_cats]
-                c_freq = [curr_counts.get(c, 0.0) * len(curr_s) for c in all_cats]
+                # Calculate relative proportions
+                b_props = np.array([base_counts.get(c, 0.0) for c in all_cats])
+                c_props = np.array([curr_counts.get(c, 0.0) for c in all_cats])
 
-                # Add small epsilon to avoid divide by zero
-                b_freq = np.array(b_freq) + 1e-5
-                c_freq = np.array(c_freq) + 1e-5
+                # Add epsilon to avoid zeros
+                b_props = b_props + 1e-5
+                c_props = c_props + 1e-5
 
-                stat, p_val = stats.chisquare(f_obs=c_freq, f_exp=b_freq)
+                # Normalize so they sum to 1.0 again
+                b_props = b_props / b_props.sum()
+                c_props = c_props / c_props.sum()
+
+                # Scale observed to match total of expected (standard SciPy requirement)
+                # We'll use 1000 as a standard sample size for the test
+                total_obs = 1000
+                f_exp = b_props * total_obs
+                f_obs = c_props * total_obs
+
+                stat, p_val = stats.chisquare(f_obs=f_obs, f_exp=f_exp)
                 results[col] = {
                     "method": "chi_square",
                     "statistic": stat,

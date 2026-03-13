@@ -2,13 +2,20 @@ import pandas as pd
 from typing import List, Any, Callable, Dict, Optional
 import re
 
+
 class ValidationResult:
-    def __init__(self, passed: bool, total_checked: int, total_failed: int, failures: Dict[str, Any]):
+    def __init__(
+        self,
+        passed: bool,
+        total_checked: int,
+        total_failed: int,
+        failures: Dict[str, Any],
+    ):
         self.passed = passed
         self.total_checked = total_checked
         self.total_failed = total_failed
         self.failures = failures
-        
+
     def summary(self) -> str:
         status = "PASSED" if self.passed else "FAILED"
         lines = [f"Validation Result: {status}"]
@@ -20,59 +27,67 @@ class ValidationResult:
                 lines.append(f" - {k}: {v}")
         return "\n".join(lines)
 
+
 class Expectation:
     def __init__(self, column: str):
         self.column = column
         self.checks: List[Callable[[pd.Series], tuple[bool, str]]] = []
-        
+
     def to_be_positive(self):
         def check(s: pd.Series):
             failed = (s <= 0).sum()
             return failed == 0, f"{failed} non-positive values found"
+
         self.checks.append(check)
         return self
-        
+
     def to_be_negative(self):
         def check(s: pd.Series):
             failed = (s >= 0).sum()
             return failed == 0, f"{failed} non-negative values found"
+
         self.checks.append(check)
         return self
-        
+
     def to_be_unique(self):
         def check(s: pd.Series):
             dupes = s.duplicated().sum()
             return dupes == 0, f"{dupes} duplicate values found"
+
         self.checks.append(check)
         return self
-        
+
     def to_not_be_null(self):
         def check(s: pd.Series):
             nulls = s.isna().sum()
             return nulls == 0, f"{nulls} null values found"
+
         self.checks.append(check)
         return self
-        
+
     def to_be_in(self, values: List[Any]):
         def check(s: pd.Series):
             failed = (~s.isin(values) & s.notna()).sum()
             return failed == 0, f"{failed} values not in {values}"
+
         self.checks.append(check)
         return self
-        
+
     def to_be_between(self, min_val, max_val):
         def check(s: pd.Series):
             failed = ((s < min_val) | (s > max_val)).sum()
             return failed == 0, f"{failed} values out of bounds [{min_val}, {max_val}]"
+
         self.checks.append(check)
         return self
-        
+
     def to_match_regex(self, pattern: str):
         def check(s: pd.Series):
             if not pd.api.types.is_string_dtype(s):
                 return False, "Column is not string dtype"
             failed = (~s.astype(str).str.match(pattern) & s.notna()).sum()
             return failed == 0, f"{failed} values do not match regex '{pattern}'"
+
         self.checks.append(check)
         return self
 
@@ -80,30 +95,38 @@ class Expectation:
         def check(s: pd.Series):
             actual = str(s.dtype)
             return actual == dtype, f"Schema mismatch: Expected {dtype}, found {actual}"
+
         self.checks.append(check)
         return self
-        
+
     def validate(self, s: pd.Series) -> List[tuple[bool, str]]:
         return [check(s) for check in self.checks]
 
+
 class Monitor:
-    def __init__(self, name: str, alerts=None, fail_on_error: bool = False, expected_columns: List[str] = None):
+    def __init__(
+        self,
+        name: str,
+        alerts=None,
+        fail_on_error: bool = False,
+        expected_columns: List[str] = None,
+    ):
         self.name = name
         self.alerts = alerts or []
         self.expectations: Dict[str, Expectation] = {}
         self.fail_on_error = fail_on_error
         self.expected_columns = expected_columns
-        
+
     def expect(self, column: str) -> Expectation:
         if column not in self.expectations:
             self.expectations[column] = Expectation(column)
         return self.expectations[column]
-        
+
     def validate(self, df: pd.DataFrame) -> ValidationResult:
         total_checked = 0
         total_failed = 0
         failures = {}
-        
+
         # 1. Structural Schema Check
         if self.expected_columns:
             missing_cols = set(self.expected_columns) - set(df.columns)
@@ -121,29 +144,29 @@ class Monitor:
                     total_failed += 1
                     failures[f"{col}_exists"] = "Column not found in dataset"
                 continue
-                
+
             results = exp.validate(df[col])
             for idx, (passed, msg) in enumerate(results):
                 total_checked += 1
                 if not passed:
                     total_failed += 1
                     failures[f"{col}_check_{idx}"] = msg
-        
+
         result = ValidationResult(
             passed=(total_failed == 0),
             total_checked=total_checked,
             total_failed=total_failed,
-            failures=failures
+            failures=failures,
         )
-        
+
         if not result.passed:
             for alert in self.alerts:
                 alert.send(
                     message=f"Quality check failed for monitor '{self.name}'",
                     context={
                         "Total Failed": result.total_failed,
-                        "Summary": result.summary()
-                    }
+                        "Summary": result.summary(),
+                    },
                 )
-                    
+
         return result
