@@ -1,0 +1,21 @@
+project: DataPulse_Demo
+version: 1.0
+
+monitors:
+  sales_performance:
+    name: "Sales Data Quality"
+    source: "sales_data.csv"
+    expectations:
+      - column: revenue
+        check: positive
+      - column: customer_id
+        check: unique
+      - column: status
+        check: in
+        params:
+          values: ["active", "pending", "shipped"]
+      - column: order_date
+        check: not_null
+    alerts:
+      - type: slack
+        url: "https://hooks.slack.com/services/EXAMPLE/WEBHOOK/URL"
