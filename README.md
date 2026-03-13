@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.svg" width="200" alt="DataPulse Logo">
+</p>
+
 # DataPulse
 
 **Automated Data Quality Monitoring for Modern Data Teams**
